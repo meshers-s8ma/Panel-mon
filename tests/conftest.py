@@ -4,6 +4,7 @@ import pytest
 import sys
 import os
 from flask import url_for
+from flask_login import login_user
 
 # Добавляем корневую папку проекта в путь Python
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -28,10 +29,8 @@ def db(app):
         _db.session.remove()
         _db.drop_all()
 
-# --- НАЧАЛО ИСПРАВЛЕНИЯ: Меняем scope на 'function' ---
 @pytest.fixture(scope='function')
 def database(db):
-# --- КОНЕЦ ИСПРАВЛЕНИЯ ---
     """Наполняет базу данных минимально необходимыми данными для каждого теста."""
     Role.insert_roles()
     admin_role = Role.query.filter_by(name='Administrator').first()
@@ -70,9 +69,26 @@ def client(app):
 
 @pytest.fixture(scope='function')
 def auth_client(client, app):
-    """Фикстура для аутентификации."""
+    """
+    Фикстура для аутентификации через POST-запрос.
+    Может оставлять flash-сообщения о входе в сессии.
+    """
     def login(username, password):
         with app.test_request_context():
             client.post(url_for('admin.user.login'), data={'username': username, 'password': password})
+        return client
+    return login
+
+@pytest.fixture(scope='function')
+def clean_auth_client(client, app):
+    """
+    Фикстура для "чистой" аутентификации без выполнения POST-запроса на login.
+    Она не создает flash-сообщений о входе, что полезно для тестов,
+    проверяющих конкретные flash-сообщения от других действий.
+    """
+    def login(username):
+        with app.test_request_context():
+            user = User.query.filter_by(username=username).first()
+            login_user(user)
         return client
     return login
