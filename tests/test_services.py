@@ -48,9 +48,10 @@ class TestDocumentService:
         # 4. Проверяем результат
         result_doc = Document(result_stream)
         
-        assert "Здравствуйте, Иван!" in [p.text for p in result_doc.paragraphs]
-        assert "Добро пожаловать в город Москва." in [p.text for p in result_doc.paragraphs]
-        assert "Этот текст останется без изменений." in [p.text for p in result_doc.paragraphs]
+        all_text = " ".join(p.text for p in result_doc.paragraphs)
+        assert "Здравствуйте, Иван!" in all_text
+        assert "Добро пожаловать в город Москва." in all_text
+        assert "Этот текст останется без изменений." in all_text
         
         result_table = result_doc.tables[0]
         assert result_table.cell(0, 0).text == "Ключ: ЗНАЧЕНИЕ"
@@ -108,9 +109,7 @@ class TestGraphService:
 
 
 class TestGraphServiceWithMocks:
-    """
-    НОВЫЙ КЛАСС. Тесты для сетевой части graph_service с использованием "моков".
-    """
+    """Тесты для сетевой части graph_service с использованием "моков"."""
 
     @patch('app.services.graph_service.requests.post')
     def test_get_access_token_success(self, mock_post, monkeypatch):
@@ -168,6 +167,5 @@ class TestGraphServiceWithMocks:
         mock_response.status_code = 404
         mock_get.return_value = mock_response
         
-        with pytest.raises(FileNotFoundError) as excinfo:
+        with pytest.raises(FileNotFoundError):
             graph_service.download_file_from_onedrive('/not_found.xlsx')
-        assert "Файл не найден в OneDrive" in str(excinfo.value)

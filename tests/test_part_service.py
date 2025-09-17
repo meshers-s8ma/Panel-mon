@@ -7,7 +7,7 @@ from werkzeug.datastructures import FileStorage
 
 from app import db
 from app.services import part_service
-from app.models.models import Part, RouteTemplate, Stage, User, StatusHistory, AuditLog
+from app.models.models import Part, RouteTemplate, Stage, User, StatusHistory, AuditLog, AssemblyComponent
 
 
 @pytest.fixture
@@ -53,9 +53,18 @@ class TestPartService:
         assert skipped_count == 0
         parent = db.session.get(Part, "АСЦБ-000475")
         child1 = db.session.get(Part, "ЦДСА.8АТ-9800.00.03.000СБ")
+        child2 = db.session.get(Part, "ЦДСА.218.79.00.04")
         assert parent is not None
         assert child1 is not None
-        assert child1.parent_id == parent.part_id
+        assert child2 is not None
+
+        # Проверяем связь через новую модель
+        link1 = AssemblyComponent.query.filter_by(parent_id=parent.part_id, child_id=child1.part_id).first()
+        link2 = AssemblyComponent.query.filter_by(parent_id=parent.part_id, child_id=child2.part_id).first()
+        assert link1 is not None
+        assert link2 is not None
+        assert link1.quantity == 1
+        assert link2.quantity == 5
 
     def test_import_from_empty_file(self, database, mock_empty_file):
         """Тест: Импорт из пустого файла должен завершаться без ошибок и возвращать 0."""
@@ -68,8 +77,7 @@ class TestPartService:
         """Тест: Импорт файла неподдерживаемого формата вызывает ValueError."""
         admin_user = User.query.filter_by(username='admin').first()
         unsupported_file = FileStorage(stream=io.BytesIO(b'test data'), filename='test.txt')
-        # Ожидаем общее сообщение об ошибке, которое возвращает сервис
-        with pytest.raises(ValueError, match="Не удалось прочитать файл. Убедитесь, что он не поврежден."):
+        with pytest.raises(ValueError, match="Неподдерживаемый формат файла"):
             part_service.import_parts_from_excel(unsupported_file, admin_user, {})
 
     @patch('app.services.part_service.socketio.emit')

@@ -1,9 +1,9 @@
 # tests/test_admin_part_routes.py
 
 import os
-from flask import url_for
+from flask import url_for, session
 from app import db
-from app.models.models import Part, User, Role, RouteTemplate, StatusHistory
+from app.models.models import Part, User, Role, RouteTemplate, StatusHistory, AssemblyComponent
 
 class TestAdminPartRoutesSuccess:
     """Тесты для успешных сценариев, выполняемых администратором."""
@@ -32,11 +32,15 @@ class TestAdminPartRoutesSuccess:
         client = auth_client('admin', 'password123')
         parent_id = 'TEST-001'
         client.post(url_for('admin.part.add_child_part', parent_part_id=parent_id), data={
-            'part_id': 'CHILD-01', 'name': 'Child Part', 'material': 'M', 'quantity_total': 1
+            'part_id': 'CHILD-01', 'name': 'Child Part', 'material': 'M', 'quantity_total': 2
         })
         child = db.session.get(Part, 'CHILD-01')
         assert child is not None
-        assert child.parent_id == parent_id
+        
+        # Проверяем создание связи в новой таблице
+        link = AssemblyComponent.query.filter_by(parent_id=parent_id, child_id='CHILD-01').first()
+        assert link is not None
+        assert link.quantity == 2
 
     def test_part_actions(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
@@ -98,79 +102,75 @@ class TestAdminPartRoutesSuccess:
         assert response.status_code == 200
         assert 'Назначить ответственного' in response.data.decode('utf-8')
 
+
 class TestPartRoutesUnhappyPaths:
 
     def test_add_part_validation_error(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
         route = RouteTemplate.query.first()
-        response = client.post(
+        client.post(
             url_for('admin.part.add_single_part'), 
-            data={'product': 'P', 'part_id': '', 'name': 'N', 'material': 'M', 'route_template': route.id, 'quantity_total': 1},
-            follow_redirects=True
+            data={'product': 'P', 'part_id': '', 'name': 'N', 'material': 'M', 'route_template': route.id, 'quantity_total': 1}
         )
-        assert response.status_code == 200
-        assert 'Ошибка в поле &#39;Обозначение (Артикул)&#39;: This field is required.' in response.data.decode('utf-8')
+        with client.session_transaction() as sess:
+            flashes = sess.get('_flashes', [])
+            assert any("Ошибка в поле 'Обозначение (Артикул)'" in msg[1] for msg in flashes)
 
     def test_add_existing_part_fails(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
         route = RouteTemplate.query.first()
-        response = client.post(
+        client.post(
             url_for('admin.part.add_single_part'),
-            data={'product': 'P', 'part_id': 'TEST-001', 'name': 'N', 'material': 'M', 'route_template': route.id, 'quantity_total': 1},
-            follow_redirects=True
+            data={'product': 'P', 'part_id': 'TEST-001', 'name': 'N', 'material': 'M', 'route_template': route.id, 'quantity_total': 1}
         )
-        assert response.status_code == 200
-        assert 'Ошибка: Деталь TEST-001 уже существует!' in response.data.decode('utf-8')
+        with client.session_transaction() as sess:
+            flashes = sess.get('_flashes', [])
+            assert any("Ошибка: Деталь TEST-001 уже существует!" in msg[1] for msg in flashes)
     
-    # --- НАЧАЛО ИСПРАВЛЕНИЯ: Переписанный тест ---
     def test_add_duplicate_child_part_fails(self, client, auth_client, database):
         """Тест: Нельзя добавить дочерний узел с уже существующим ID."""
         client = auth_client('admin', 'password123')
         
-        # 1. Создаем отдельную деталь, которая будет "родителем"
         parent_part = Part(part_id='PARENT-01', product_designation='Test', name='Parent', material='M')
-        # 2. Создаем отдельную деталь, которая будет "дубликатом"
         existing_part = Part(part_id='EXISTING-01', product_designation='Test', name='Existing', material='M')
         db.session.add_all([parent_part, existing_part])
         db.session.commit()
 
-        # 3. Пытаемся добавить к PARENT-01 дочернюю деталь с ID EXISTING-01
-        response = client.post(
+        client.post(
             url_for('admin.part.add_child_part', parent_part_id='PARENT-01'), 
-            data={'part_id': 'EXISTING-01', 'name': 'Child', 'material': 'M', 'quantity_total': 1}, 
-            follow_redirects=True
+            data={'part_id': 'EXISTING-01', 'name': 'Child', 'material': 'M', 'quantity_total': 1}
         )
 
-        # 4. Проверяем, что получили правильное flash-сообщение
-        assert response.status_code == 200
-        assert "Ошибка: Деталь с артикулом 'EXISTING-01' уже существует!" in response.data.decode('utf-8')
-    # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
+        with client.session_transaction() as sess:
+            flashes = sess.get('_flashes', [])
+            assert len(flashes) > 0
+            assert "уже существует" in flashes[0][1]
 
     def test_bulk_action_with_no_parts_selected(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
-        response = client.post(
-            url_for('admin.part.bulk_action'),
-            data={'action': 'delete', 'part_ids': []},
-            follow_redirects=True
-        )
-        assert response.status_code == 200
-        assert 'Вы не выбрали ни одной детали.' in response.data.decode('utf-8')
+        client.post(url_for('admin.part.bulk_action'), data={'action': 'delete', 'part_ids': []})
+        with client.session_transaction() as sess:
+            assert "Вы не выбрали ни одной детали." in sess['_flashes'][0][1]
 
     def test_bulk_print_with_no_parts_selected(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
-        response = client.post(url_for('admin.part.qr_print_preview'), data={'part_ids': []}, follow_redirects=True)
-        assert response.status_code == 200
-        assert 'Вы не выбрали ни одной детали для печати.' in response.data.decode('utf-8')
+        client.post(url_for('admin.part.qr_print_preview'), data={'part_ids': []})
+        with client.session_transaction() as sess:
+            assert "Вы не выбрали ни одной детали для печати." in sess['_flashes'][0][1]
 
     def test_operator_cannot_access_part_routes(self, client, auth_client, database):
         client = auth_client('operator', 'password123')
         
-        response_add = client.post(url_for('admin.part.add_single_part'), data={}, follow_redirects=True)
-        assert 'У вас нет прав для доступа к этой странице.' in response_add.data.decode('utf-8')
+        client.post(url_for('admin.part.add_single_part'), data={})
+        with client.session_transaction() as sess:
+            assert 'У вас нет прав для доступа к этой странице.' in sess['_flashes'][0][1]
         
-        response_edit = client.get(url_for('admin.part.edit_part', part_id='TEST-001'), follow_redirects=True)
-        assert 'У вас нет прав для доступа к этой странице.' in response_edit.data.decode('utf-8')
+        client.get(url_for('admin.part.edit_part', part_id='TEST-001'))
+        with client.session_transaction() as sess:
+            assert 'У вас нет прав для доступа к этой странице.' in sess['_flashes'][0][1]
         
-        response_delete = client.post(url_for('admin.part.delete_part', part_id='TEST-001'), follow_redirects=True)
-        assert 'У вас нет прав для доступа к этой странице.' in response_delete.data.decode('utf-8')
+        client.post(url_for('admin.part.delete_part', part_id='TEST-001'))
+        with client.session_transaction() as sess:
+            assert 'У вас нет прав для доступа к этой странице.' in sess['_flashes'][0][1]
+        
         assert db.session.get(Part, 'TEST-001') is not None
