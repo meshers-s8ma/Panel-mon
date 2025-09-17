@@ -1,6 +1,6 @@
 # tests/test_admin_report_routes.py
 
-from flask import url_for, session
+from flask import url_for
 from unittest.mock import patch
 from io import BytesIO
 from app.models.models import StatusHistory, Part
@@ -40,20 +40,18 @@ class TestReportRoutes:
         assert response.mimetype == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
     @patch('app.services.graph_service.download_file_from_onedrive', side_effect=FileNotFoundError("Mocked Not Found"))
-    def test_generate_from_cloud_file_not_found_error(self, mock_download, client, clean_auth_client, database):
+    def test_generate_from_cloud_file_not_found_error(self, mock_download, client, auth_client, database):
         """Тест: Проверяет корректную обработку ошибки, когда файл не найден в OneDrive."""
-        # Используем "чистую" аутентификацию, чтобы избежать лишних flash-сообщений
-        client = clean_auth_client('admin')
+        client = auth_client('admin', 'password123')
         data = {
             'excel_path': '/bad.xlsx', 'row_number': 2, 'word_template': (BytesIO(b't'), 't.docx')
         }
-        client.post(url_for('admin.report.generate_from_cloud'), data=data)
+        # Добавляем follow_redirects=True, чтобы клиент "следовал" за редиректом
+        response = client.post(url_for('admin.report.generate_from_cloud'), data=data, follow_redirects=True)
         
-        # Теперь в сессии будет только ОДНО сообщение - об ошибке.
-        with client.session_transaction() as sess:
-            flashes = sess.get('_flashes', [])
-            assert len(flashes) == 1
-            assert "Ошибка генерации отчета: Mocked Not Found" in flashes[0][1]
+        # Теперь мы проверяем flash-сообщение в HTML-коде финальной страницы
+        assert response.status_code == 200
+        assert "Ошибка генерации отчета: Mocked Not Found" in response.data.decode('utf-8')
 
     def test_api_operator_performance(self, client, auth_client, database):
         """Тест: API для производительности операторов возвращает корректный JSON."""

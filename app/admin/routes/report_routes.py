@@ -44,14 +44,14 @@ def report_stage_duration():
 @report_bp.route('/order_completion')
 @permission_required(Permission.VIEW_REPORTS)
 def report_order_completion():
-    """НОВЫЙ МАРШРУТ: Отображает страницу отчета по времени выполнения заказа."""
+    """Отображает страницу отчета по времени выполнения заказа."""
     return render_template('reports/order_completion.html')
 
 
 @report_bp.route('/defect_analysis')
 @permission_required(Permission.VIEW_REPORTS)
 def report_defect_analysis():
-    """НОВЫЙ МАРШРУТ: Отображает страницу отчета по анализу брака."""
+    """Отображает страницу отчета по анализу брака."""
     return render_template('reports/defect_analysis.html')
 
 
@@ -85,15 +85,15 @@ def generate_from_cloud():
                 download_name=final_filename,
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
-        # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
-        # Мы объединяем обработку всех ожидаемых ошибок, чтобы тесты их ловили.
         except (FileNotFoundError, ValueError, IndexError, graph_service.GraphAPIError) as e:
             error_message = f"Ошибка генерации отчета: {e}"
             flash(error_message, "error")
             current_app.logger.error(f"Error in generate_from_cloud: {error_message}", exc_info=True)
+            return redirect(url_for('admin.report.generate_from_cloud'))
         except Exception as e:
             flash(f"Произошла непредвиденная ошибка: {e}", "error")
             current_app.logger.error(f"Unhandled error in generate_from_cloud: {e}", exc_info=True)
+            return redirect(url_for('admin.report.generate_from_cloud'))
             
     return render_template('reports/generate_from_cloud.html', form=form)
 
@@ -154,7 +154,6 @@ def api_report_stage_duration():
 @report_bp.route('/api/reports/order_completion')
 @login_required
 def api_report_order_completion():
-    """НОВЫЙ API: Возвращает данные о времени выполнения для завершенных деталей."""
     last_stage_time = db.session.query(
         StatusHistory.part_id,
         func.max(StatusHistory.timestamp).label('completion_time')
@@ -183,7 +182,6 @@ def api_report_order_completion():
 @report_bp.route('/api/reports/defect_analysis')
 @login_required
 def api_report_defect_analysis():
-    """НОВЫЙ API: Возвращает данные по количеству брака на каждом этапе."""
     data = db.session.query(
         StatusHistory.status,
         func.sum(StatusHistory.quantity).label('scrapped_qty')
