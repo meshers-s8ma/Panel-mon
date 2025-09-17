@@ -1,6 +1,6 @@
 # tests/test_admin_report_routes.py
 
-from flask import url_for
+from flask import url_for, session
 from unittest.mock import patch
 from io import BytesIO
 from app.models.models import StatusHistory, Part
@@ -17,6 +17,8 @@ class TestReportRoutes:
         assert client.get(url_for('admin.report.report_operator_performance')).status_code == 200
         assert client.get(url_for('admin.report.report_stage_duration')).status_code == 200
         assert client.get(url_for('admin.report.generate_from_cloud')).status_code == 200
+        assert client.get(url_for('admin.report.report_order_completion')).status_code == 200
+        assert client.get(url_for('admin.report.report_defect_analysis')).status_code == 200
 
     @patch('app.services.graph_service.download_file_from_onedrive')
     @patch('app.services.graph_service.read_row_from_excel_bytes')
@@ -44,9 +46,12 @@ class TestReportRoutes:
         data = {
             'excel_path': '/bad.xlsx', 'row_number': 2, 'word_template': (BytesIO(b't'), 't.docx')
         }
-        response = client.post(url_for('admin.report.generate_from_cloud'), data=data, follow_redirects=True)
-        assert response.status_code == 200
-        assert 'Файл не найден в OneDrive'.encode('utf-8') in response.data
+        client.post(url_for('admin.report.generate_from_cloud'), data=data)
+        
+        # Проверяем flash-сообщение в сессии
+        with client.session_transaction() as sess:
+            flashes = [msg for cat, msg in sess.get('_flashes', [])]
+            assert any("Файл не найден в OneDrive" in msg for msg in flashes)
 
     def test_api_operator_performance(self, client, auth_client, database):
         """Тест: API для производительности операторов возвращает корректный JSON."""

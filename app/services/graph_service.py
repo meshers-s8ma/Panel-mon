@@ -6,17 +6,6 @@ import openpyxl
 import io
 import re
 
-# --- Конфигурация ---
-# Эти переменные должны быть установлены в вашем .env файле для аутентификации
-MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID")
-MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET")
-MS_TENANT_ID = os.environ.get("MS_TENANT_ID")
-
-# Email или ID пользователя, чей OneDrive будет использоваться.
-# Требуется для потока "client credentials" (доступ от имени приложения).
-MS_ONEDRIVE_USER_ID = os.environ.get("MS_ONEDRIVE_USER_ID")
-
-
 class GraphAPIError(Exception):
     """Пользовательское исключение для ошибок при работе с Graph API."""
     pass
@@ -27,6 +16,11 @@ def _get_access_token():
     Выполняет аутентификацию в Microsoft Identity Platform для получения токена доступа.
     Использует поток "client credentials" (учетные данные клиента).
     """
+    # Читаем переменные окружения внутри функции, чтобы тесты могли их подменять
+    MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID")
+    MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET")
+    MS_TENANT_ID = os.environ.get("MS_TENANT_ID")
+    
     if not all([MS_CLIENT_ID, MS_CLIENT_SECRET, MS_TENANT_ID]):
         raise GraphAPIError(
             "В файле .env отсутствуют учетные данные Microsoft: "
@@ -66,14 +60,14 @@ def download_file_from_onedrive(file_path_in_onedrive: str) -> bytes:
                                   например, '/Documents/Отчеты/data.xlsx'
     :return: Содержимое файла в виде байтов.
     """
+    # Читаем переменную окружения внутри функции
+    MS_ONEDRIVE_USER_ID = os.environ.get("MS_ONEDRIVE_USER_ID")
     if not MS_ONEDRIVE_USER_ID:
         raise GraphAPIError("В файле .env отсутствует ID пользователя OneDrive (MS_ONEDRIVE_USER_ID).")
 
     access_token = _get_access_token()
 
     # Формат API для доступа к файлу в диске конкретного пользователя.
-    # Требует прав уровня приложения, таких как Files.Read.All.
-    # Двоеточие в пути обязательно для API.
     api_url = (
         f"https://graph.microsoft.com/v1.0/users/{MS_ONEDRIVE_USER_ID}/drive/root:"
         f"{file_path_in_onedrive}:/content"
