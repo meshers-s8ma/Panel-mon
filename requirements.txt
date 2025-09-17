@@ -30,6 +30,7 @@ qrcode==8.2
 
 # Monitoring and Logging (NEW)
 sentry-sdk[flask]
+python-json-logger
 
 # Utilities
 python-dotenv==1.1.1
