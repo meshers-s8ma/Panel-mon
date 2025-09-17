@@ -85,12 +85,16 @@ def generate_from_cloud():
                 download_name=final_filename,
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
+        # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+        # Мы объединяем обработку всех ожидаемых ошибок, чтобы тесты их ловили.
         except (FileNotFoundError, ValueError, IndexError, graph_service.GraphAPIError) as e:
-            flash(f"Ошибка генерации отчета: {e}", "error")
+            error_message = f"Ошибка генерации отчета: {e}"
+            flash(error_message, "error")
+            current_app.logger.error(f"Error in generate_from_cloud: {error_message}", exc_info=True)
         except Exception as e:
             flash(f"Произошла непредвиденная ошибка: {e}", "error")
             current_app.logger.error(f"Unhandled error in generate_from_cloud: {e}", exc_info=True)
-
+            
     return render_template('reports/generate_from_cloud.html', form=form)
 
 
