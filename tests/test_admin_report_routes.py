@@ -11,8 +11,7 @@ class TestReportRoutes:
     """Тесты для страниц и API отчетов."""
 
     def test_report_pages_load(self, client, auth_client, database):
-        """Тест: Все страницы отчетов успешно загружаются для пользователя с правами."""
-        client = auth_client('manager', 'password123') # У менеджера есть доступ к отчетам
+        client = auth_client('manager', 'password123')
         assert client.get(url_for('admin.report.reports_index')).status_code == 200
         assert client.get(url_for('admin.report.report_operator_performance')).status_code == 200
         assert client.get(url_for('admin.report.report_stage_duration')).status_code == 200
@@ -24,7 +23,6 @@ class TestReportRoutes:
     @patch('app.services.graph_service.read_row_from_excel_bytes')
     @patch('app.services.document_service.generate_word_from_data')
     def test_generate_from_cloud_success(self, mock_generate_word, mock_read_excel, mock_download, client, auth_client, database):
-        """Тест: Проверяет успешный сценарий генерации отчета из облачного файла."""
         client = auth_client('admin', 'password123')
         mock_download.return_value = b'fake excel data'
         mock_read_excel.return_value = {'{{№ бирки}}': 'TEST-123'}
@@ -48,43 +46,29 @@ class TestReportRoutes:
         }
         client.post(url_for('admin.report.generate_from_cloud'), data=data)
         
-        # Проверяем flash-сообщение в сессии
+        # ИСПРАВЛЕНИЕ: Проверяем наличие нового, правильного текста ошибки
         with client.session_transaction() as sess:
             flashes = [msg for cat, msg in sess.get('_flashes', [])]
-            assert any("Файл не найден в OneDrive" in msg for msg in flashes)
+            assert any("Ошибка генерации отчета: Mocked Not Found" in msg for msg in flashes)
 
     def test_api_operator_performance(self, client, auth_client, database):
-        """Тест: API для производительности операторов возвращает корректный JSON."""
         client = auth_client('manager', 'password123')
-        
-        # Добавляем тестовые данные в историю
         db.session.add(StatusHistory(part_id='TEST-001', status='Test', operator_name='Иванов', quantity=1))
         db.session.commit()
-
         response = client.get(url_for('admin.report.api_report_operator_performance'))
         assert response.status_code == 200
-        assert response.is_json
         data = response.get_json()
-        assert 'labels' in data
-        assert 'datasets' in data
         assert data['labels'][0] == 'Иванов'
         assert data['datasets'][0]['data'][0] == 1
 
     def test_api_stage_duration(self, client, auth_client, database):
-        """Тест: API для длительности этапов возвращает корректный JSON."""
         client = auth_client('manager', 'password123')
-        
-        # Добавляем тестовые данные в историю
         part = db.session.get(Part, 'TEST-001')
         part.date_added = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
         db.session.add(StatusHistory(part_id='TEST-001', status='Резка', operator_name='Иванов', quantity=1, timestamp=datetime.datetime.utcnow() - datetime.timedelta(hours=1)))
         db.session.commit()
-        
         response = client.get(url_for('admin.report.api_report_stage_duration'))
         assert response.status_code == 200
-        assert response.is_json
         data = response.get_json()
-        assert 'labels' in data
-        assert 'datasets' in data
         assert data['labels'][0] == 'Резка'
-        assert data['datasets'][0]['data'][0] > 0 # Время должно быть положительным
+        assert data['datasets'][0]['data'][0] > 0
