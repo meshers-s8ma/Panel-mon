@@ -143,34 +143,38 @@ class TestPartRoutesUnhappyPaths:
 
         with client.session_transaction() as sess:
             flashes = sess.get('_flashes', [])
-            assert len(flashes) > 0
-            assert "уже существует" in flashes[0][1]
+            assert any("уже существует" in msg[1] for msg in flashes)
 
     def test_bulk_action_with_no_parts_selected(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
         client.post(url_for('admin.part.bulk_action'), data={'action': 'delete', 'part_ids': []})
         with client.session_transaction() as sess:
-            assert "Вы не выбрали ни одной детали." in sess['_flashes'][0][1]
+            flashes = sess.get('_flashes', [])
+            assert any("Вы не выбрали ни одной детали." in msg[1] for msg in flashes)
 
     def test_bulk_print_with_no_parts_selected(self, client, auth_client, database):
         client = auth_client('admin', 'password123')
         client.post(url_for('admin.part.qr_print_preview'), data={'part_ids': []})
         with client.session_transaction() as sess:
-            assert "Вы не выбрали ни одной детали для печати." in sess['_flashes'][0][1]
+            flashes = sess.get('_flashes', [])
+            assert any("Вы не выбрали ни одной детали для печати." in msg[1] for msg in flashes)
 
     def test_operator_cannot_access_part_routes(self, client, auth_client, database):
         client = auth_client('operator', 'password123')
         
         client.post(url_for('admin.part.add_single_part'), data={})
         with client.session_transaction() as sess:
-            assert 'У вас нет прав для доступа к этой странице.' in sess['_flashes'][0][1]
+            flashes = sess.get('_flashes', [])
+            assert any('У вас нет прав для доступа к этой странице.' in msg[1] for msg in flashes)
         
         client.get(url_for('admin.part.edit_part', part_id='TEST-001'))
         with client.session_transaction() as sess:
-            assert 'У вас нет прав для доступа к этой странице.' in sess['_flashes'][0][1]
+            flashes = sess.get('_flashes', [])
+            assert any('У вас нет прав для доступа к этой странице.' in msg[1] for msg in flashes)
         
         client.post(url_for('admin.part.delete_part', part_id='TEST-001'))
         with client.session_transaction() as sess:
-            assert 'У вас нет прав для доступа к этой странице.' in sess['_flashes'][0][1]
+            flashes = sess.get('_flashes', [])
+            assert any('У вас нет прав для доступа к этой странице.' in msg[1] for msg in flashes)
         
         assert db.session.get(Part, 'TEST-001') is not None

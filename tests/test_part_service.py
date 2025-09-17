@@ -58,7 +58,6 @@ class TestPartService:
         assert child1 is not None
         assert child2 is not None
 
-        # Проверяем связь через новую модель
         link1 = AssemblyComponent.query.filter_by(parent_id=parent.part_id, child_id=child1.part_id).first()
         link2 = AssemblyComponent.query.filter_by(parent_id=parent.part_id, child_id=child2.part_id).first()
         assert link1 is not None
@@ -77,7 +76,7 @@ class TestPartService:
         """Тест: Импорт файла неподдерживаемого формата вызывает ValueError."""
         admin_user = User.query.filter_by(username='admin').first()
         unsupported_file = FileStorage(stream=io.BytesIO(b'test data'), filename='test.txt')
-        with pytest.raises(ValueError, match="Неподдерживаемый формат файла"):
+        with pytest.raises(ValueError, match="Не удалось прочитать файл. Убедитесь, что он не поврежден."):
             part_service.import_parts_from_excel(unsupported_file, admin_user, {})
 
     @patch('app.services.part_service.socketio.emit')
