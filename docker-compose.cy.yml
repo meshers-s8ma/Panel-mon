@@ -1,0 +1,41 @@
+# docker-compose.cy.yml (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
+
+services:
+  web:
+    # Мы по-прежнему расширяем сервис web, чтобы не дублировать его конфигурацию,
+    # но теперь добавляем монтирование томов.
+    extends:
+      file: docker-compose.yml
+      service: web
+    # === НАЧАЛО ИСПРАВЛЕНИЯ: Добавляем монтирование томов ===
+    volumes:
+      - .:/app
+      - /app/node_modules
+    # === КОНЕЦ ИСПРАВЛЕНИЯ ===
+    depends_on:
+      - db
+
+  db:
+    extends:
+      file: docker-compose.yml
+      service: db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  cypress:
+    image: cypress/included:13.13.0
+    container_name: product_tracker_cypress
+    depends_on:
+      - web
+    environment:
+      - CYPRESS_baseUrl=http://web:5000
+    working_dir: /e-2-e
+    volumes:
+      - ./cypress:/e-2-e/cypress
+      - ./cypress.config.js:/e-2-e/cypress.config.js
+
+volumes:
+  postgres_data_dev:

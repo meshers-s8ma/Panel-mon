@@ -1,0 +1,102 @@
+<!-- app/templates/reports/order_completion.html -->
+
+{% extends "base.html" %}
+
+{% block title %}Отчет: Время выполнения заказа{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Отчет: Время выполнения заказа</h1>
+    <a href="{{ url_for('admin.report.reports_index') }}" class="text-blue-600 hover:underline mt-2 inline-block">&larr; Назад к выбору отчетов</a>
+</div>
+
+<div class="bg-white p-6 rounded-lg shadow-md mb-6">
+    <p class="text-gray-700">
+        Этот отчет показывает полное время, затраченное на производство для каждой из последних 30 завершенных деталей (от момента создания до завершения последнего этапа).
+        Высокие значения могут указывать на общие проблемы с логистикой или длительные простои между операциями.
+    </p>
+</div>
+
+<div class="bg-white p-6 rounded-lg shadow-md">
+    <canvas id="completionChart"></canvas>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+    const ctx = document.getElementById('completionChart').getContext('2d');
+
+    try {
+        const response = await fetch(`/admin/report/api/reports/order_completion`);
+        const chartData = await response.json();
+
+        if (!chartData || !chartData.labels || chartData.labels.length === 0) {
+            const canvas = ctx.canvas;
+            ctx.font = "16px Arial";
+            ctx.fillStyle = "#6b7280"; // gray-500
+            ctx.textAlign = "center";
+            ctx.fillText("Нет данных по завершенным деталям для построения отчета", canvas.width / 2, 50);
+            return;
+        }
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { 
+                            display: true, 
+                            text: 'Дней на выполнение' 
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Обозначение детали'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        display: false 
+                    },
+                    title: { 
+                        display: true, 
+                        text: 'Общее время выполнения для последних завершенных деталей',
+                        font: {
+                            size: 18
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(2) + ' дн.';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Ошибка при загрузке данных для графика:", error);
+        const canvas = ctx.canvas;
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#ef4444"; // red-500
+        ctx.textAlign = "center";
+        ctx.fillText("Не удалось загрузить данные для отчета", canvas.width / 2, 50);
+    }
+});
+</script>
+{% endblock %}

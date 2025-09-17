@@ -1,0 +1,110 @@
+<!-- app/templates/reports/defect_analysis.html -->
+
+{% extends "base.html" %}
+
+{% block title %}Отчет: Анализ брака{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Отчет: Анализ брака</h1>
+    <a href="{{ url_for('admin.report.reports_index') }}" class="text-blue-600 hover:underline mt-2 inline-block">&larr; Назад к выбору отчетов</a>
+</div>
+
+<div class="bg-white p-6 rounded-lg shadow-md mb-6">
+    <p class="text-gray-700">
+        Этот отчет показывает, на каких производственных этапах было зафиксировано наибольшее количество брака.
+        Анализ этих данных помогает выявить самые проблемные операции в технологическом процессе и сосредоточить усилия на их улучшении.
+    </p>
+</div>
+
+<div class="bg-white p-6 rounded-lg shadow-md">
+    <canvas id="defectChart"></canvas>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+    const ctx = document.getElementById('defectChart').getContext('2d');
+
+    try {
+        const response = await fetch(`/admin/report/api/reports/defect_analysis`);
+        const chartData = await response.json();
+
+        if (!chartData || !chartData.labels || chartData.labels.length === 0) {
+            const canvas = ctx.canvas;
+            ctx.font = "16px Arial";
+            ctx.fillStyle = "#6b7280"; // gray-500
+            ctx.textAlign = "center";
+            ctx.fillText("Данные о браке отсутствуют", canvas.width / 2, 50);
+            return;
+        }
+
+        new Chart(ctx, {
+            type: 'pie', // Круговая диаграмма для наглядного распределения
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: chartData.datasets[0].label,
+                    data: chartData.datasets[0].data,
+                    // Генерируем разные цвета для каждого сегмента
+                    backgroundColor: [
+                        'rgba(239, 68, 68, 0.7)',
+                        'rgba(249, 115, 22, 0.7)',
+                        'rgba(234, 179, 8, 0.7)',
+                        'rgba(132, 204, 22, 0.7)',
+                        'rgba(34, 197, 94, 0.7)',
+                        'rgba(16, 185, 129, 0.7)',
+                        'rgba(20, 184, 166, 0.7)',
+                        'rgba(6, 182, 212, 0.7)',
+                        'rgba(59, 130, 246, 0.7)',
+                        'rgba(99, 102, 241, 0.7)',
+                        'rgba(139, 92, 246, 0.7)',
+                        'rgba(168, 85, 247, 0.7)'
+                    ],
+                    borderColor: 'rgba(255, 255, 255, 0.8)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { 
+                        position: 'top', // Расположение легенды
+                    },
+                    title: { 
+                        display: true, 
+                        text: 'Распределение брака по производственным этапам',
+                        font: {
+                            size: 18
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed !== null) {
+                                    label += context.parsed + ' шт.';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Ошибка при загрузке данных для графика:", error);
+        const canvas = ctx.canvas;
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#ef4444"; // red-500
+        ctx.textAlign = "center";
+        ctx.fillText("Не удалось загрузить данные для отчета", canvas.width / 2, 50);
+    }
+});
+</script>
+{% endblock %}

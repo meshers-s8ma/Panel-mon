@@ -1,0 +1,41 @@
+services:
+  web:
+    build: .
+    container_name: product_tracker_app_dev
+    ports:
+      - "5000:5000"
+    volumes:
+      # Монтируем весь проект в контейнер для "живой" перезагрузки кода
+      - .:/app
+      # Исключаем локальную папку node_modules из монтирования,
+      # чтобы использовать ту, что установлена внутри контейнера.
+      - /app/node_modules
+    environment:
+      # Явно указываем окружение для разработки
+      - FLASK_ENV=development
+    env_file:
+      # Подключаем файл с переменными окружения
+      - .env
+    depends_on:
+      # Сервис web запустится только после сервиса db
+      - db
+    
+    # --- ИЗМЕНЕНИЕ: Заменяем 'command' на 'entrypoint' ---
+    # Теперь запуск всех процессов для разработки (сборка CSS + Flask)
+    # управляется единым скриптом, что делает конфигурацию более
+    # надежной и схожей с production-окружением.
+    entrypoint: /app/entrypoint.dev.sh
+
+  db:
+    image: postgres:13
+    container_name: product_tracker_db_dev
+    volumes:
+      # Используем именованный том для персистентного хранения данных PostgreSQL
+      - postgres_data_dev:/var/lib/postgresql/data/
+    env_file:
+      - .env
+    # Для разработки healthcheck не так критичен, но его можно добавить по аналогии с prod.yml
+
+volumes:
+  # Определяем именованный том для данных PostgreSQL
+  postgres_data_dev:

@@ -1,0 +1,32 @@
+{
+  "name": "tracker",
+  "version": "1.0.0",
+  "description": "Это веб-приложение на Flask, предназначенное для отслеживания прохождения изделий (\"деталей\") по производственным этапам с помощью QR-кодов.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "css:build": "postcss ./app/static/src/input.css -o ./app/static/dist/output.css",
+    "css:watch": "postcss ./app/static/src/input.css -o ./app/static/dist/output.css --watch",
+    "start:flask": "flask --app wsgi:app run --host=0.0.0.0 --port=5000",
+    "dev": "concurrently \"npm:start:flask\" \"npm:css:watch\"",
+    "cy:open": "docker-compose -f docker-compose.cy.yml run --rm cypress",
+    "cy:run": "docker-compose -f docker-compose.cy.yml run --rm cypress cypress run",
+    "cy:debug": "docker-compose -f docker-compose.cy.yml run --rm -p 5000:5000 cypress"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "socket.io-client": "4.7.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.19",
+    "concurrently": "8.2.2",
+    "cypress": "13.13.0",
+    "postcss": "8.4.38",
+    "postcss-cli": "11.0.0",
+    "tailwindcss": "3.4.4"
+  }
+}

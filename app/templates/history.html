@@ -1,0 +1,200 @@
+<!-- app/templates/history.html -->
+
+{% extends "base.html" %}
+{% from '_part_hierarchy.html' import render_children %}
+
+{% block title %}История: {{ part.part_id }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="bg-gray-800 text-white p-4 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold">Обозначение: {{ part.part_id }}</h1>
+        <p class="text-lg text-gray-300 mt-1">Изделие: <span class="font-medium">{{ part.product_designation }}</span></p>
+        <div class="mt-2 text-sm text-gray-400 grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+            <p>Наименование: <span class="font-medium text-gray-200">{{ part.name }}</span></p>
+            <p>Материал: <span class="font-medium text-gray-200">{{ part.material }}</span></p>
+            <p>Размер: <span class="font-medium text-gray-200">{{ part.size or 'Не указан' }}</span></p>
+        </div>
+    </div>
+</div>
+
+<!-- Панель навигации и действий с контейнером для галереи -->
+<div id="drawing-container" class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap gap-4 items-center justify-between">
+    <div>
+        {# Если у детали есть хотя бы один родитель, показываем ссылку на первого из них #}
+        {% if part.parent_associations.first() %}
+            <a href="{{ url_for('main.history', part_id=part.parent_associations.first().parent_id) }}" class="text-blue-600 hover:underline">&larr; Назад к родительской сборке</a>
+        {% else %}
+            <a href="{{ url_for('main.dashboard') }}" class="text-blue-600 hover:underline">&larr; Назад на панель</a>
+        {% endif %}
+    </div>
+    <div class="flex flex-wrap gap-4 items-center">
+        {% if part.drawing_filename %}
+            <!-- Эта ссылка будет перехвачена lightgallery.js -->
+            <a href="{{ url_for('admin.part.serve_drawing', filename=part.drawing_filename) }}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md">
+                Показать чертеж
+            </a>
+        {% endif %}
+        
+        {% if current_user.is_authenticated and current_user.can(Permission.EDIT_PARTS) %}
+            <a href="{{ url_for('admin.part.change_part_route', part_id=part.part_id) }}" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-md">
+                Сменить маршрут
+            </a>
+            <a href="{{ url_for('admin.part.change_responsible', part_id=part.part_id) }}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md">
+                Сменить ответственного
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Блок иерархии изделия -->
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Состав изделия</h2>
+    <div class="bg-white p-6 rounded-lg shadow-md">
+        
+        {% if part.parent_associations.count() > 0 %}
+        <div class="mb-4 pb-4 border-b border-gray-200">
+            <span class="font-semibold text-gray-700">Входит в состав:</span>
+            <ul class="list-disc list-inside mt-2">
+            {% for component_link in part.parent_associations %}
+                <li>
+                    <a href="{{ url_for('main.history', part_id=component_link.parent.part_id) }}" class="font-medium text-blue-600 hover:underline">{{ component_link.parent.name }} ({{ component_link.parent.part_id }})</a>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <h3 class="font-semibold text-gray-700 mb-2">Компоненты ({{ part.child_associations.count() }}):</h3>
+        {% if part.child_associations.count() > 0 %}
+            <div class="ml-4">
+                {{ render_children(part.child_associations.order_by('child_id')) }}
+            </div>
+        {% else %}
+            <p class="text-sm text-gray-500 italic">В составе этого узла нет других компонентов.</p>
+        {% endif %}
+
+        {% if current_user.is_authenticated and current_user.can(Permission.ADD_PARTS) %}
+        <div class="mt-6 pt-6 border-t border-gray-200">
+            <h3 class="font-semibold text-gray-700 mb-4">Добавить новый узел/компонент в состав</h3>
+            <form action="{{ url_for('admin.part.add_child_part', parent_part_id=part.part_id) }}" method="post" novalidate class="space-y-4">
+                {{ child_form.hidden_tag() }}
+                <div>
+                    {{ child_form.part_id.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ child_form.part_id(class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500") }}
+                </div>
+                <div>
+                    {{ child_form.name.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ child_form.name(class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500") }}
+                </div>
+                <div>
+                    {{ child_form.material.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ child_form.material(class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500") }}
+                </div>
+                <div>
+                    {{ child_form.quantity_total.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ child_form.quantity_total(class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500", type="number", min="1") }}
+                </div>
+                {{ child_form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500") }}
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Основная сетка для примечаний и ленты событий -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Левая колонка: Форма примечания -->
+    <div class="lg:col-span-1">
+        {% if current_user.is_authenticated %}
+        <div class="bg-white p-6 rounded-lg shadow-md sticky top-10">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Добавить примечание</h2>
+            <form action="{{ url_for('main.add_note', part_id=part.part_id) }}" method="post" novalidate class="space-y-4">
+                {{ note_form.hidden_tag() }}
+                <div>
+                    {{ note_form.stage.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ note_form.stage(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md") }}
+                </div>
+                <div>
+                    {{ note_form.text.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ note_form.text(rows=4, class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500") }}
+                    {% for error in note_form.text.errors %}<p class="mt-2 text-sm text-red-600">{{ error }}</p>{% endfor %}
+                </div>
+                {{ note_form.submit(class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500") }}
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Правая колонка: Лента событий -->
+    <div class="lg:col-span-2">
+        <div class="space-y-6">
+            {% if combined_history %}
+                {% for entry in combined_history %}
+                    <div class="bg-white p-4 rounded-lg shadow-md">
+                        {# ... (код отображения событий остается без изменений) ... #}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="bg-white p-6 rounded-lg shadow-md text-center text-gray-500">
+                    <p>История для этой детали пуста.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleEdit(noteId) {
+        const textDiv = document.getElementById('note-text-' + noteId);
+        const formDiv = document.getElementById('note-edit-form-' + noteId);
+        if (textDiv && formDiv) {
+            textDiv.style.display = textDiv.style.display === 'none' ? 'block' : 'none';
+            formDiv.style.display = formDiv.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Логика для асинхронного редактирования примечаний
+        document.querySelectorAll('.note-edit-form').forEach(form => {
+            form.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                const noteId = this.dataset.noteId;
+                const formData = new FormData(this);
+                const textDiv = document.getElementById('note-text-' + noteId);
+                
+                try {
+                    const response = await fetch(`/edit_note/${noteId}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        const newHtml = result.new_text.replace(/\n/g, '<br>\\n');
+                        textDiv.innerHTML = `<p>${newHtml}</p>`; // Используем <p> для правильного отображения
+                        toggleEdit(noteId);
+                        if(window.createToast) createToast(result.message, 'success');
+                    } else {
+                        if(window.createToast) createToast(result.message || 'Произошла ошибка', 'error');
+                    }
+                } catch (error) {
+                    if(window.createToast) createToast('Сетевая ошибка. Попробуйте снова.', 'error');
+                }
+            });
+        });
+
+        // Инициализация галереи для чертежей
+        const drawingContainer = document.getElementById('drawing-container');
+        if (drawingContainer && window.lightGallery) {
+            lightGallery(drawingContainer, {
+                selector: 'a[href$=".jpg"], a[href$=".jpeg"], a[href$=".png"], a[href$=".gif"]',
+                download: true,
+                licenseKey: 'your-optional-license-key' 
+            });
+        }
+    });
+</script>
+{% endblock %}

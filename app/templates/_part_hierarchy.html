@@ -1,0 +1,27 @@
+{# app/templates/_part_hierarchy.html #}
+
+{% macro render_children(child_associations) %}
+    {# 
+      Этот макрос рекурсивно отображает дерево дочерних компонентов.
+      На вход он принимает список объектов-связей AssemblyComponent.
+    #}
+    <ul class="list-disc list-inside space-y-2">
+        {% for component in child_associations %}
+            {# Итерируемся по объектам-связям, а не напрямую по деталям #}
+            <li>
+                {# Ссылка ведет на дочернюю деталь, доступную через component.child #}
+                <a href="{{ url_for('main.history', part_id=component.child.part_id) }}" class="text-blue-600 hover:underline">{{ component.child.name }} ({{ component.child.part_id }})</a>
+                {# Количество берется из объекта-связи component.quantity #}
+                - {{ component.quantity }} шт.
+                
+                {# Рекурсивный вызов для отображения "внуков" и т.д. #}
+                {% if component.child.child_associations.count() > 0 %}
+                    <div class="ml-6 mt-1">
+                        {# Передаем в следующий вызов дочерние ассоциации текущего компонента #}
+                        {{ render_children(component.child.child_associations.order_by('child_id')) }}
+                    </div>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
